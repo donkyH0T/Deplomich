@@ -1,0 +1,22 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres
+    environment:
+      POSTGRES_DB: "youtube_parsing"
+      POSTGRES_USER: "parsing"
+      POSTGRES_PASSWORD: "1234"
+    ports:
+      - "5432:5432"
+
+  rabbitmq:
+      image: rabbitmq:$RABBITMQ_VERSION
+      #docker hub https://hub.docker.com/_/rabbitmq
+      environment:
+          RABBITMQ_SERVER_ADDITIONAL_ERL_ARGS: -rabbitmq_management load_definitions "/definitions/definitions.json"
+      ports:
+          - "5673:5672"
+          - "15673:15672"
+      volumes:
+          - "./rabbitmq:/definitions"

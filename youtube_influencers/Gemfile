@@ -1,0 +1,27 @@
+# frozen_string_literal: true
+
+# A sample Gemfile
+source 'https://rubygems.org'
+
+gem 'activesupport'
+gem 'aws-sdk'
+gem 'bunny'
+gem 'cld'
+gem 'closed_struct'
+gem 'down'
+gem 'eye'
+gem 'mail'
+gem 'mechanize'
+gem 'oj'
+gem 'open3'
+gem 'pg'
+gem 'redis'
+gem 'rest-client'
+gem 'rmagick'
+gem 'rspec'
+gem 'rubocop'
+gem 'rubyXL'
+gem 'selenium-webdriver'
+gem 'sequel'
+gem 'sinatra'
+gem 'thor'

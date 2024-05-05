@@ -1,0 +1,13 @@
+**/.DS_Store
+config/*
+!config/config.sample.yml
+logs/*
+!logs/.gitkeep
+tmp/*
+!tmp/.gitkeep
+redis_data/*
+!redis_data/.gitkeep
+.idea
+lib/face/YoloKerasFaceDetection/pretrain/agegender_age101_squeezenet.hdf5
+lib/face/YoloKerasFaceDetection/pretrain/agegender_gender_squeezenet.hdf5
+lib/face/YoloKerasFaceDetection/pretrain/yolov2_tiny-face.h5

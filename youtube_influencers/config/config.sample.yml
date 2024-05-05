@@ -1,0 +1,61 @@
+db:
+  host: ''
+  port: '1433'
+  database: ''
+  user: ''
+  password: ''
+db2:
+  host: ''
+  port: '1433'
+  database: ''
+  user: ''
+  password: ''
+rmq:
+  host: '127.0.0.1'
+  port: '5673'
+  username: ''
+  password: ''
+  vhost: '/'
+rmq_elasticsearch:
+  host: '127.0.0.1'
+  port: '5673'
+  username: ''
+  password: ''
+  vhost: '/'
+redis:
+  host: 127.0.0.1
+  port: 6380
+proxies: ['23.26.229.173:45785','23.26.229.144:45785','23.26.228.117:45785','23.26.228.57:45785']
+s3_storage:
+  region: ''
+  bucket: ''
+  id: ''
+  secret: ''
+
+rucaptcha_key: '1234'
+
+infrastructure:
+  linktree_exchange: 'exchange.linktree_profiles'
+  linktree_queue: 'queue.linktree_profiles'
+ 
+  hashtag_import_queue: 'queue.hashtag_import'
+  hashtag_import_exchange: 'exchange.hashtag_import'
+  export_queue: 'queue.export'
+  import_queue: 'queue.profile_scrapper'
+  videos_queue: 'queue.videos'
+  s3_queue: 'queue.s3_uploader'
+  categories_queue: 'queue.categories_agent'
+  face_queue: 'queue.face_agent'
+  business_email_channels_queue: 'queue.business_email_channels'
+
+  import_exchange: 'exchange.profile_scrapper'
+  videos_exchange: 'exchange.videos'
+  export_exchange: 'exchange.export'
+  s3_exchange: 'exchange.s3_uploader'
+  face_exchange: 'exchange.face_agent'
+  categories_exchange: 'exchange.categories_agent'
+  business_email_channels_exchange: 'exchange.business_email_channels'
+  redis_keys:
+    s3_profile_img_hash_name: 's3_profile_img'
+    last_import_id_key: 'last_import_id_key'
+    last_business_email_channels_id_key: 'last_business_email_channels_id_key'
