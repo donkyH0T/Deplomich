@@ -59,7 +59,7 @@ const App = () => {
                             <button onClick={runScript} className={`btn ${isScriptRunning ? 'btn-danger' : 'btn-success'}`}>
                                 {isScriptRunning ? 'Stop Script Parsing' : 'Start Script Parsing'}
                             </button>
-                            <AccountCard accounts={data} />
+                            <AccountCard initialAccounts={data} />
                             <div>
                                 {page > 1 && <button onClick={handlePreviousPage} className="btn btn-primary">Previous Page</button>}
                                 {page < totalPages && <button onClick={handleNextPage} className="btn btn-primary">Next Page</button>}

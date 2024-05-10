@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
 
-const AccountTable = () => {
+const AccountCard = ({ initialAccounts }) => {
     const [accounts, setAccounts] = useState([]);
     const [searchValue, setSearchValue] = useState('');
     const [sortType, setSortType] = useState(null);
@@ -14,8 +14,15 @@ const AccountTable = () => {
 
     const fetchData = async () => {
         const response = await axios.get(`http://localhost:4567/api/accounts?sort=${sortType}&direction=${sortDirection}&search=${searchValue}`);
+        //console.log(response.data)
         setAccounts(response.data);
     };
+
+    useEffect(() => {
+        if (initialAccounts.length > 0) {
+            setAccounts(initialAccounts);
+        }
+    }, [initialAccounts]);
 
     const handleSort = (type) => {
         if (type === sortType) {
@@ -29,7 +36,7 @@ const AccountTable = () => {
         e.preventDefault();
         fetchData();
     }
-
+    //console.log(accounts)
     return (
         <div>
             <form onSubmit={handleSubmit}>
@@ -66,4 +73,4 @@ const AccountTable = () => {
     );
 };
 
-export default AccountTable;
+export default AccountCard;
