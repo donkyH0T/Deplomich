@@ -3,14 +3,14 @@ module YIParser
 		@config = O14::Config.get_config
 
 		@profile_queue = O14::RMQ.get_channel.queue(@config.infrastructure['linktree_queue'], durable: true)
-		
+
 		@export_exchange = O14::RMQ.get_channel.direct(@config.infrastructure['export_exchange'], durable: true)
 
-		
+
 		def self.logger
 			O14::ProjectLogger.get_logger
 		end
-		
+
 		def self.run
 			logger = O14::ProjectLogger.get_logger
 			@profile_queue.subscribe(manual_ack: true, block: true) do |delivery_info, _properties, body|
@@ -22,7 +22,7 @@ module YIParser
 					sleep 10
 					next
 				end
-				
+
 				logger.debug proxy
 				process_profile msg, proxy
 				O14::RMQ.get_channel.ack(delivery_info.delivery_tag)
@@ -34,17 +34,29 @@ module YIParser
 				logger.error "#{$!.class.name}\n#{$!.message}\n#{$!.backtrace.join("\n")}"
 			end
 		end
-		
+
 		def self.process_profile msg, proxy
 			nickname = msg[:data][:nickname]
 			userid = msg[:data][:userid]
-			
+
 			if nickname == 'admin'
 				logger.debug "nickname is admin, skip"
-				
+
 				return true
 			end
-			
+
+			if nickname == 'login'
+				logger.debug "nickname is login, skip"
+
+				return true
+			end
+
+			if nickname == 'register'
+				logger.debug "nickname is register, skip"
+
+				return true
+			end
+
 			logger.debug "Linktree nickname #{nickname}"
 			init_data = LinktreeHttpClient.get_profile_data(nickname, proxy)
 			if init_data[:error]
@@ -54,7 +66,7 @@ module YIParser
 				end
 				raise init_data[:error]
 			end
-			
+
 			profile = parse_profile_data init_data
 			msg = {
 				type: 'linktree_profile',
@@ -68,7 +80,7 @@ module YIParser
 			}
 			O14::RMQ.send_message @export_exchange, msg
 		end
-		
+
 		def self.parse_profile_data init_data
 			email = get_email init_data
 			possible_email = false
@@ -80,7 +92,7 @@ module YIParser
 				possible_email: possible_email
 			}
 		end
-		
+
 		def self.get_email init_data
 			if init_data['props']['pageProps']['socialLinks']
 				enail_el = init_data['props']['pageProps']['socialLinks'].find{|_e| _e['type'] == 'EMAIL_ADDRESS'}
@@ -96,7 +108,7 @@ module YIParser
 			end
 			nil
 		end
-		
+
 		def self.detect_possible_email_case init_data
 			str_init_data = init_data.to_json
 			str_init_data = str_init_data.gsub('isEmailVerified', '')

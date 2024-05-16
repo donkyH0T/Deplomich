@@ -1,6 +1,4 @@
-# frozen_string_literal: true
 
-require 'English'
 require 'rest-client'
 
 module YIParser
@@ -21,45 +19,22 @@ module YIParser
           next
         end
         logger.info("Proxy #{proxy}")
-
         proxy_r = proxy.split(':')
-        O14::WebBrowser.set_proxy({ host: proxy_r[0], port: proxy_r[1] })
+        O14::WebBrowser.set_proxy({host: proxy_r[0], port: proxy_r[1]})
         msg = JSON.parse(body, symbolize_names: true)
-
         logger.info("channel #{msg[:userid]}")
-
         start_time_load = Time.now
         driver.navigate.to "https://www.youtube.com/channel/#{msg[:userid]}/about"
         logger.debug "Page load by #{Time.now - start_time_load}"
         title_text_el = nil
         error_el = nil
-        trends_title = nil
-        10.times do
-          trends_title = begin
-            driver.find_element(css: '.dynamic-text-view-model-wiz__h1')
-          rescue StandardError
-            nil
-          end
-          error_el = begin
-            driver.find_element(css: '#container.ERROR')
-          rescue StandardError
-            nil
-          end
-          title_text_el = begin
-            driver.find_element(css: 'ytd-popup-container #title-text')
-          rescue StandardError
-            nil
-          end
-          break if title_text_el || error_el || trends_title
-
+        (1..10).each do
+          accept_all_button = driver.find_element(xpath: '//span[contains(text(),"Accept all")]') rescue nil
+          accept_all_button.click if accept_all_button
+          error_el = driver.find_element(css: '#container.ERROR') rescue nil
+          title_text_el = driver.find_element(css: 'ytd-popup-container #title-text') rescue nil
+          break if title_text_el || error_el
           sleep 1
-        end
-        if trends_title
-          logger.info('Channel not found (trends page)')
-          YIParser::ProxiesManager.set_bm_success_usage(proxy)
-          O14::RMQ.get_channel.ack(delivery_info.delivery_tag)
-          O14::WebBrowser.quit_browser
-          next
         end
         if error_el
           logger.info('Channel has been terminated for violating')
@@ -70,27 +45,22 @@ module YIParser
         end
         if title_text_el.nil?
           logger.error('Youtube page title not found')
-          driver.save_screenshot('screenshots/be_title_not_found.png')
+          driver.save_screenshot("screenshots/be_title_not_found.png")
           O14::RMQ.get_channel.reject(delivery_info.delivery_tag, true)
           O14::WebBrowser.quit_browser
           next
         end
         YIParser::ProxiesManager.set_bm_success_usage(proxy)
 
-        parsed_email_el = begin
-          driver.find_element(xpath: '//a[contains(text(),"Sign in")]')
-        rescue StandardError
-          nil
-        end
+        parsed_email_el = driver.find_element(xpath: '//a[contains(text(),"Sign in")]') rescue nil
 
         if parsed_email_el.nil?
           logger.info('No email element')
-          driver.save_screenshot('screenshots/be_email_btn_not_found.png')
+          driver.save_screenshot("screenshots/be_email_btn_not_found.png")
           O14::RMQ.get_channel.ack(delivery_info.delivery_tag)
           O14::WebBrowser.quit_browser
           next
         end
-
         account = get_account
         if account.nil?
           O14::RMQ.get_channel.reject(delivery_info.delivery_tag, true)
@@ -101,25 +71,18 @@ module YIParser
           logger.info "Account id #{account[:id]}"
           begin
             set_cookies(account[:cookies])
-          rescue StandardError
+          rescue
             logger.error 'Something with browser...'
-            logger.error "#{$ERROR_INFO.class.name}\n#{$ERROR_INFO.message}\n#{$ERROR_INFO.backtrace.join("\n")}"
+            logger.error "#{$!.class.name}\n#{$!.message}\n#{$!.backtrace.join("\n")}"
             O14::WebBrowser.quit_browser
             O14::RMQ.get_channel.reject(delivery_info.delivery_tag, true)
             next
           end
-          parse_result = parse_emails(msg[:userid])
+          parse_result = parse_emails
           logger.info(parse_result)
-          db[:google_accounts_history].insert(google_acoount_id: account[:id], proxy: proxy_r.join(':'),
-                                              result: parse_result.to_json, channel_id: msg[:userid])
-
+          db[:google_accounts_history].insert(google_acoount_id: account[:id], proxy: proxy_r.join(':'), result: parse_result.to_json, channel_id: msg[:userid])
           if parse_result[:success]
-            db[:google_accounts].where(id: account[:id]).update(last_login: true, last_success_login: Time.now)
-          end
-          if parse_result[:msg] == 'captcha_attempt'
-            db[:google_accounts].where(id: account[:id]).update(last_captcha_attempt: Time.now)
-          end
-          if parse_result[:email]
+            db[:google_accounts].where(:id => account[:id]).update(:last_login => true, :last_success_login => Time.now)
             msg = {
               type: 'influencer_emails',
               data: {
@@ -135,24 +98,28 @@ module YIParser
             }
             logger.info(msg)
             O14::RMQ.send_message(@export_exchange, msg)
-          elsif parse_result[:msg] == 'unknown_error'
-            driver.save_screenshot('screenshots/be_auth_no_email_btn.png')
+            O14::RMQ.get_channel.ack(delivery_info.delivery_tag)
+          else
+            if parse_result[:msg] == 'captcha_attempt'
+              db[:google_accounts].where(id: account[:id]).update(last_captcha_attempt: Time.now)
+            elsif parse_result[:msg] == 'unknown_error'
+              driver.save_screenshot("screenshots/be_auth_no_email_btn.png")
+            end
             O14::RMQ.get_channel.reject(delivery_info.delivery_tag, true)
-            O14::WebBrowser.quit_browser
-            next
           end
         end
-        O14::RMQ.get_channel.ack(delivery_info.delivery_tag)
         O14::WebBrowser.quit_browser
       rescue Bunny::Session
         O14::RMQ.get_channel.reject(delivery_info.delivery_tag, true)
         logger.error "#{Time.now} - Bunny::Session Error"
-      rescue StandardError
+      rescue => e
         O14::RMQ.get_channel.reject(delivery_info.delivery_tag, true)
         O14::WebBrowser.quit_browser
-        logger.error "#{$ERROR_INFO.class.name}\n#{$ERROR_INFO.message}\n#{$ERROR_INFO.backtrace.join("\n")}"
+        logger.error "#{$!.class.name}\n#{$!.message}\n#{$!.backtrace.join("\n")}"
       end
     end
+
+    private
 
     def self.db
       O14::DB.get_db
@@ -171,10 +138,11 @@ module YIParser
       db.transaction do
         account = db["SELECT * FROM google_accounts WHERE cookies IS NOT NULL AND cookies != 'Error' AND last_try_time IS NULL"].first
         if account.nil?
-          account = db["SELECT * FROM google_accounts WHERE cookies IS NOT NULL AND cookies != 'Error' AND (last_captcha_attempt <= ? OR last_captcha_attempt IS NULL) ORDER BY last_try_time",
-                       Time.now - 60 * 60].first
+          account = db["SELECT * FROM google_accounts WHERE cookies IS NOT NULL AND cookies != 'Error' AND (last_captcha_attempt <= ? OR last_captcha_attempt IS NULL) ORDER BY last_try_time", Time.now - 60*60].first
         end
-        db[:google_accounts].where(id: account[:id]).update(last_try_time: Time.now) if account
+        if account
+          db[:google_accounts].where(:id => account[:id]).update(:last_try_time => Time.now)
+        end
       end
       account
     end
@@ -190,7 +158,7 @@ module YIParser
         v = value[1].strip
         is_secure = false
         is_secure = true if k =~ /__Secure/
-        cookie = { name: k, value: v, secure: is_secure, domain: 'youtube.com' }
+        cookie = {name: k, value: v, secure: is_secure, domain: 'youtube.com'}
         driver.manage.add_cookie(cookie)
       end
 
@@ -199,40 +167,31 @@ module YIParser
       logger.debug "Page refresh by #{Time.now - start_time_load}"
     end
 
-    def self.parse_emails(_youtube_channel)
+    def self.parse_emails
       parse_result = {
-        success: true,
+        success: false,
         email: nil,
         msg: ''
       }
 
       login_logo = nil
-      10.times do
-        login_logo = begin
-          driver.find_element(css: '#masthead img#img')
-        rescue StandardError
-          nil
+      (1..10).each do
+        login_logo = driver.find_element(css: '#masthead img#img') rescue nil
+        if login_logo
+          break
         end
-        break if login_logo
-
         sleep 1
       end
       unless login_logo
-        parse_result[:success] = false
         parse_result[:msg] = 'login_fail'
-        driver.save_screenshot('screenshots/be_login_fail.png')
+        driver.save_screenshot("screenshots/be_login_fail.png")
 
         return parse_result
       end
       parsed_email_el = nil
-      10.times do
-        parsed_email_el = begin
-          driver.find_element(css: 'a#email')
-        rescue StandardError
-          nil
-        end
+      (1..10).each do
+        parsed_email_el = driver.find_element(css: 'a#email') rescue nil
         break if parsed_email_el
-
         sleep 1
       end
 
@@ -244,25 +203,28 @@ module YIParser
       end
       parsed_email = parsed_email_el.text.strip
       unless parsed_email.empty?
+        parse_result[:success] = true
         parse_result[:email] = parsed_email
 
         return parse_result
       end
 
       captcha_result = captcha_resolve
-      5.times do
-        parsed_email = begin
-          driver.find_element(css: 'a#email').text.strip
-        rescue StandardError
-          ''
+      (1..5).each do
+        parsed_email = driver.find_element(css: 'a#email').text.strip rescue ''
+        if parsed_email.length > 0
+          break
         end
-        break if parsed_email.length.positive?
-
-        sleep 1
+        sleep 5
       end
-      driver.save_screenshot('screenshots/be_captcha_result.png')
+      driver.save_screenshot("screenshots/be_captcha_result.png")
       logger.info "parsed email = #{parsed_email}"
-      parse_result[:email] = parsed_email if parsed_email&.length&.positive?
+      if parsed_email && parsed_email.length > 0
+        parse_result[:email] = parsed_email
+      end
+      if parse_result[:email]
+        parse_result[:success] = true
+      end
       parse_result[:msg] = captcha_result
 
       parse_result
@@ -270,14 +232,9 @@ module YIParser
 
     def self.captcha_resolve
       button = nil
-      10.times do
-        button = begin
-          driver.find_element(css: '#view-email-button-container div.yt-spec-touch-feedback-shape__fill')
-        rescue StandardError
-          nil
-        end
+      (1..10).each do
+        button = driver.find_element(css: '#view-email-button-container div.yt-spec-touch-feedback-shape__fill') rescue nil
         break if button
-
         sleep 1
       end
 
@@ -288,47 +245,39 @@ module YIParser
       end
       button.click
       captcha_iframe = nil
-      10.times do
-        captcha_iframe = begin
-          driver.find_element(css: 'iframe[src*=recaptcha]')
-        rescue StandardError
-          nil
-        end
+      (1..10).each do
+        captcha_iframe = driver.find_element(css: 'iframe[src*=recaptcha]') rescue nil
         break if captcha_iframe
-
         sleep 1
       end
 
       return 'no_captcha' if captcha_iframe.nil?
-
       O14::RucaptchaClient.recaptcha2(O14::Config.get_config.rucaptcha_key)
-                          .current_url { driver.current_url }
+                          .current_url {driver.current_url}
                           .captcha_token do
-        driver.execute_script(" document.querySelector('#g-recaptcha-response').style.display = 'block'")
-        driver.execute_script " document.querySelector('#g-recaptcha-response').value = ''"
+        driver.execute_script(%q| document.querySelector('#g-recaptcha-response').style.display = 'block'|)
+        driver.execute_script %q| document.querySelector('#g-recaptcha-response').value = ''|
         rc_frame = driver.find_element(css: 'iframe[src*=recaptcha]')
         uri = URI(rc_frame.attribute('src'))
         URI.decode_www_form(uri.query).to_h['k']
       end
-        .captcha_input do |captcha_code|
-          logger.info captcha_code
-          response_input = driver.find_element(id: 'g-recaptcha-response')
-          response_input.send_keys captcha_code.force_encoding('utf-8')
+                          .captcha_input do |captcha_code|
+        logger.info captcha_code
+        response_input = driver.find_element(id: 'g-recaptcha-response')
+        response_input.send_keys captcha_code.force_encoding('utf-8')
+      end
+                          .submit do |captcha_code|
+        driver.find_element(css: '#submit-btn').click
+      end
+                          .check_bad_captcha do
+        result = false
+        response_input = driver.find_element(id: 'g-recaptcha-response') rescue nil
+        if response_input
+          result = true
         end
-        .submit do |_captcha_code|
-          driver.find_element(css: '#submit-btn').click
-        end
-        .check_bad_captcha do
-          result = false
-          response_input = begin
-            driver.find_element(id: 'g-recaptcha-response')
-          rescue StandardError
-            nil
-          end
-          result = true if response_input
-          result
-        end
-        .start
+        result
+      end
+                          .start
       'captcha_attempt'
     end
   end

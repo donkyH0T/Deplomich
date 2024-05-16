@@ -1,5 +1,3 @@
-# frozen_string_literal: true
-
 require 'oj'
 
 module YIParser
@@ -16,8 +14,8 @@ module YIParser
     end
 
     def self.run
-      db[:InfluencerLinktreeProfiles].where(possible_email: 1).all.each do |linktree_row|
-        userid = db[:YouTubeInfluencers].select(:userid).where(id: linktree_row[:youtube_influencer_id]).first[:userid]
+      db[:InfluencerLinktreeProfiles].where(:possible_email => 1).all.each do |linktree_row|
+        userid = db[:YouTubeInfluencers].select(:userid).where(:id => linktree_row[:youtube_influencer_id]).first[:userid]
         if userid && linktree_row[:nickname]
           msg = {
             type: 'profile',
@@ -32,5 +30,6 @@ module YIParser
         end
       end
     end
+
   end
 end
