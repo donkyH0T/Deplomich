@@ -41,6 +41,32 @@ class App < Thor
   def hashtags_agent
     YIParser::HashtagsAgent.run
   end
+
+  desc 'linktree_profile_agent', '6)Run linktree profile agent'
+  def linktree_profile_agent
+    YIParser::LinktreeProfileAgent.run
+  end
+
+  desc 'linktree_possible_emails_import', '7)Run linktree possible emails profiles import'
+  def linktree_possible_emails_import
+    YIParser::LinktreePossibleEmailsImport.run
+  end
+
+  desc 'business_emails_import', '8)Start script which fill queue with channels for business emails detection'
+  def business_emails_import
+    YIParser::BusinessEmailsImport.run
+  end
+
+  desc 'business_emails_agent', '9)Find emails in youtube channels'
+  def business_emails_agent
+    YIParser::BusinessEmailsAgent.run
+  end
+
+  desc 'location_queue_filler', '10)Fill locations_search'
+  def location_queue_filler
+    YIParser::LocationQueueFiller.run
+  end
+
   private
 
   def initialize_logger
